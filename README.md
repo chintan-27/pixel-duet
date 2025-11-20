@@ -4,27 +4,40 @@ Rearrange only the pixels from Image A (unchanged) so they form the structure of
 
 ![Demo](output/swap.gif)
 
-## Highlights
-- One-way only: uses the exact pixels from A; B is just the layout guide.
-- Multiscale, edge-aware assignment for clean structure without visible tile seams.
-- Curved, eased motion paths and a final hold so the GIF ends on the finished image.
+## What’s included
+- `duet.py` — CLI tool that generates the animation and GIF.
+- `app.py` — desktop app (PySide6) with a clean, user‑friendly UI:
+  - Two image cards that show thumbnails immediately when selected or drag‑dropped.
+  - Submit button with progress feedback.
+  - Output viewer that displays the final GIF at its original pixel size (no stretching), scrollable if larger than the window.
 
 ## Requirements
 - Python 3.9+
-- numpy, pillow, matplotlib, scipy
-- Install: 
+- numpy, pillow, matplotlib, scipy, PySide6
+
+Install:
 ```bash
-pip install numpy pillow matplotlib scipy
+pip install numpy pillow matplotlib scipy PySide6
 ```
 
-## Quick start
-- Put your inputs in images/, outputs in output/.
-- Run:
+## Quick start (CLI)
+Put your inputs in `images/`, outputs in `output/`, then run:
 ```bash
 python duet.py images/A.png images/B.png --width 260 --frames 120 --hold 24 --save output/swap.gif
 ```
+Your generated GIF will be written to `output/swap.gif`.
 
-## Recommended presets
+## Quick start (App)
+Run the desktop app:
+```bash
+python app.py
+```
+- Drag & drop or select Image A (source colors) and Image B (target structure).
+- Adjust Width, Frames, Hold, Arc, and Stagger if you like.
+- Click Submit to export a GIF; progress shows during render.
+- The output viewer plays the GIF at its original pixel size with scrollbars if needed.
+
+## Recommended presets (CLI)
 Portrait/logo (crisp edges, minimal “box” artifacts):
 ```bash
 python duet.py images/A.png images/B.png \
@@ -41,20 +54,20 @@ python duet.py images/A.png images/B.png \
   --lam-spatial 0.40,0.28,0.20,0.16 --lam-parent 0.00,0.22,0.16,0.12
 ```
 
-## CLI (most useful flags)
-- --width: working width in pixels; raise for detail, lower for speed.
-- --frames: animation frames before the final hold.
-- --hold: extra frames to show the final permuted image (great for GIFs).
-- --stagger: 0..1, how much random staggering in start times (feel of the motion).
-- --arc: 0.., how curvy the paths are (0 = straight).
-- --save: path to write a GIF/animation, e.g., output/swap.gif.
-- --seed: set for reproducible timing.
+## CLI flags (most useful)
+- `--width` working width in pixels; raise for detail, lower for speed.
+- `--frames` animation frames before the final hold.
+- `--hold` extra frames to show the final permuted image (great for GIFs).
+- `--stagger` 0..1, random staggering in start times (feel of motion).
+- `--arc` 0.., path curvature (0 = straight).
+- `--save` path to write the GIF, e.g., `output/swap.gif`.
+- `--seed` set for reproducible timing.
 
-Advanced multiscale (coarse → fine)
-- --levels: comma-separated widths; must end with --width.
-- --tiles: per-level tile sizes (smaller at finer levels).
-- --lam-spatial: per-level weight reducing long travel.
-- --lam-parent: per-level weight that anchors fine assignments near the coarser mapping (edge-aware). Slightly higher on fine levels sharpens edges and reduces seams.
+Advanced multiscale (coarse → fine):
+- `--levels` comma‑separated widths; must end with `--width`.
+- `--tiles` per‑level tile sizes (smaller at finer levels).
+- `--lam-spatial` per‑level weight penalizing long travel.
+- `--lam-parent` per‑level weight anchoring fine assignments near the coarser mapping (edge‑aware).
 
 Example (custom multiscale):
 ```bash
@@ -65,34 +78,32 @@ python duet.py images/A.png images/B.png \
 ```
 
 ## How it works (short)
-- We compute a bijection from pixels in A to positions in B with a coarse-to-fine, edge-aware assignment in Lab color space, plus spatial and “stay near your coarser destination” penalties. Overlapping windows and small refinement swaps remove the visible box seams.
+- A bijection maps pixels in A to positions in B with a coarse‑to‑fine, edge‑aware assignment in Lab color space, plus spatial and parent‑anchoring terms. Overlapping windows and small refinement swaps remove visible seams.
 - Animation moves each A pixel along a cubic Bezier with cosine easing, then the last frames hold the exact permuted image (no blending).
 
 ## Quality tips
-- Still see faint blockiness? Add a level (e.g., --levels 64,128,192,260) and set a smaller final tile (8–10), slightly increase final --lam-parent.
-- Features not snapping? Raise the last lam-parent a bit (e.g., from 0.12 to 0.16).
-- Too busy motion? Lower --stagger (e.g., 0.25) and --arc (e.g., 0.08).
-- Very different color palettes between A and B: the likeness may be limited by A’s colors; reducing travel (higher lam-spatial) can still improve structure.
+- Faint blockiness: add a level (`--levels 64,128,192,260`), use a smaller final tile (8–10), slightly increase final `--lam-parent`.
+- Features not snapping: raise the last `--lam-parent` (e.g., 0.12 → 0.16).
+- Motion too busy: lower `--stagger` (e.g., 0.25) and `--arc` (e.g., 0.08).
+- Very different color palettes: raise `--lam-spatial` to reduce travel and improve structure legibility.
 
 ## Performance
-- Lower --width to speed up. 220–280 is a good range for laptops.
+- Lower `--width` to speed up; 220–280 is a good range for laptops.
 - Fewer levels and larger tiles are faster but may reintroduce seams.
-- SciPy’s linear_sum_assignment is required for the best mapping; without it, the script falls back to a simpler global rank mapping.
+- SciPy’s `linear_sum_assignment` is required for best mapping; without it, the script falls back to a simpler global rank mapping.
 
 ## Troubleshooting
 - FileNotFoundError: check input paths or use absolute paths.
-- No window shows: you might be headless; include --save and open the GIF afterward.
-- Slow / high memory: reduce --width and levels, or use larger tiles at coarser levels.
+- Headless environment: include `--save` and open the GIF afterward.
+- Slow / memory heavy: reduce `--width`, use fewer levels, or larger tiles at coarse levels.
+- App GIF preview: the app uses QMovie and falls back to a PIL player; both display at original pixel size without stretching.
 
 ## Project layout (suggested)
-- duet.py
-- images/ (inputs)
-- output/ (results, e.g., swap.gif)
-- README.md
-
-## Roadmap
-- Desktop interface (PySide6) with drag-and-drop, presets, scrubber, and export to MP4/GIF.
-- Style presets (portrait, logo, abstract) and one-click quality/speed modes.
+- `duet.py` — CLI
+- `app.py` — desktop app
+- `images/` — inputs
+- `output/` — results (e.g., `swap.gif`)
+- `README.md`
 
 ## License
-- MIT
+MIT
