@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PIXEL DUET</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --black: #0a0a0a;
+      --white: #f0efe8;
+      --acid: #c8ff00;
+      --grey: #3a3a3a;
+      --mid: #888;
+      --border: 3px solid var(--black);
+      --border-thick: 5px solid var(--black);
+      --mono: 'Space Mono', 'Courier New', monospace;
+      --serif: 'Instrument Serif', 'Georgia', serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    ::selection { background: var(--acid); color: var(--black); }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--white);
+      color: var(--black);
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.5;
+      cursor: crosshair;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* ======================== NAVBAR ======================== */
+
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: stretch;
+      border-bottom: var(--border-thick);
+      background: var(--white);
+    }
+    .nav-logo {
+      padding: 1rem 1.5rem;
+      border-right: var(--border-thick);
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+      display: flex; align-items: center; gap: 0.5rem;
+      white-space: nowrap;
+    }
+    .nav-logo .dot {
+      width: 10px; height: 10px;
+      background: var(--acid);
+      display: inline-block;
+      animation: blink 2s step-end infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .nav-links {
+      display: flex; align-items: stretch; flex: 1;
+    }
+    .nav-links a {
+      padding: 1rem 1.5rem;
+      border-right: var(--border);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      display: flex; align-items: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-links a:hover {
+      background: var(--black);
+      color: var(--white);
+    }
+    .nav-spacer { flex: 1; }
+    .nav-cta {
+      padding: 1rem 2rem;
+      background: var(--acid);
+      color: var(--black);
+      font-weight: 700;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      display: flex; align-items: center;
+      border-left: var(--border-thick);
+      transition: background 0.15s;
+      cursor: pointer;
+    }
+    .nav-cta:hover { background: var(--black); color: var(--acid); }
+
+    /* ======================== HERO ======================== */
+
+    .hero {
+      border-bottom: var(--border-thick);
+      padding: 6rem 3rem 5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background:
+        repeating-linear-gradient(90deg, transparent 0, transparent 49px, rgba(0,0,0,0.04) 49px, rgba(0,0,0,0.04) 50px),
+        repeating-linear-gradient(0deg, transparent 0, transparent 49px, rgba(0,0,0,0.04) 49px, rgba(0,0,0,0.04) 50px);
+      pointer-events: none;
+    }
+    .hero-tag {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--mid);
+      margin-bottom: 1.5rem;
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .hero-tag::before {
+      content: '';
+      width: 40px; height: 2px;
+      background: var(--acid);
+      display: inline-block;
+    }
+    .hero h1 {
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: clamp(3.5rem, 10vw, 9rem);
+      line-height: 0.92;
+      letter-spacing: -0.03em;
+      margin-bottom: 2rem;
+    }
+    .hero h1 em {
+      font-style: italic;
+      color: var(--grey);
+    }
+    .hero h1 .highlight {
+      background: var(--acid);
+      padding: 0 0.15em;
+      display: inline;
+    }
+    .hero-desc {
+      max-width: 550px;
+      font-size: 0.9rem;
+      line-height: 1.7;
+      color: var(--grey);
+    }
+    .hero-stats {
+      display: flex; gap: 0; margin-top: 3rem;
+      border: var(--border);
+      width: fit-content;
+    }
+    .hero-stat {
+      padding: 1.25rem 2rem;
+      border-right: var(--border);
+      text-align: center;
+    }
+    .hero-stat:last-child { border-right: none; }
+    .hero-stat .num {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+      display: block;
+    }
+    .hero-stat .lbl {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--mid);
+      margin-top: 0.4rem;
+      display: block;
+    }
+
+    /* ======================== MARQUEE ======================== */
+
+    .marquee-wrap {
+      border-bottom: var(--border-thick);
+      overflow: hidden;
+      background: var(--black);
+      color: var(--acid);
+      padding: 0.8rem 0;
+    }
+    .marquee {
+      display: flex; gap: 3rem;
+      white-space: nowrap;
+      animation: scroll 20s linear infinite;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      font-weight: 700;
+    }
+    .marquee span::before {
+      content: '\2022';
+      margin-right: 3rem;
+    }
+    @keyframes scroll {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+
+    /* ======================== TOOL SECTION ======================== */
+
+    .tool-section {
+      border-bottom: var(--border-thick);
+    }
+    .tool-header {
+      padding: 3rem;
+      border-bottom: var(--border);
+      display: flex; align-items: baseline; gap: 1.5rem;
+    }
+    .tool-header h2 {
+      font-family: var(--serif);
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+    }
+    .tool-header .badge {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      padding: 0.35rem 0.75rem;
+      border: 2px solid var(--black);
+      white-space: nowrap;
+    }
+
+    .tool-body { display: flex; }
+
+    /* Left: drop zones */
+    .tool-left {
+      flex: 1;
+      border-right: var(--border-thick);
+      display: flex; flex-direction: column;
+    }
+    .drop-zone {
+      flex: 1;
+      padding: 2rem;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s;
+      position: relative;
+      min-height: 200px;
+    }
+    .drop-zone:first-child { border-bottom: var(--border); }
+    .drop-zone:hover { background: rgba(200, 255, 0, 0.06); }
+    .drop-zone.dragover { background: rgba(200, 255, 0, 0.12); }
+    .drop-zone input[type=file] { display: none; }
+    .drop-zone .zone-tag {
+      position: absolute; top: 1rem; left: 1rem;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--mid);
+    }
+    .drop-zone .zone-label {
+      font-size: 0.8rem;
+      color: var(--mid);
+      text-align: center;
+      border-bottom: 1px dashed var(--mid);
+      padding-bottom: 2px;
+    }
+    .drop-zone img {
+      max-width: 100%; max-height: 180px;
+      object-fit: contain;
+      border: var(--border);
+    }
+    .drop-zone .zone-filename {
+      margin-top: 0.75rem;
+      font-size: 0.75rem;
+      color: var(--mid);
+    }
+
+    /* Input toggle (file vs URL) */
+    .input-toggle {
+      position: absolute; top: 1rem; right: 1rem;
+      display: flex; gap: 0;
+      border: 2px solid var(--black);
+    }
+    .input-toggle button {
+      background: transparent;
+      border: none;
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.3rem 0.6rem;
+      cursor: pointer;
+      color: var(--mid);
+      transition: all 0.15s;
+    }
+    .input-toggle button:first-child { border-right: 2px solid var(--black); }
+    .input-toggle button.active {
+      background: var(--black);
+      color: var(--white);
+    }
+    .url-input {
+      display: none;
+      width: 100%;
+      max-width: 320px;
+    }
+    .url-input input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid var(--black);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      padding: 0.5rem 0;
+      color: var(--black);
+      outline: none;
+    }
+    .url-input input:focus {
+      border-color: var(--acid);
+    }
+    .url-input input::placeholder {
+      color: var(--mid);
+    }
+
+    .drop-arrow {
+      display: flex; align-items: center; justify-content: center;
+      padding: 0.5rem 0;
+      font-size: 1.5rem;
+      color: var(--mid);
+      border-bottom: var(--border);
+      font-family: var(--mono);
+    }
+
+    /* Chain builder */
+    .chain-add-zone {
+      padding: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      border-top: var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .chain-add-zone:hover { background: rgba(200, 255, 0, 0.06); }
+    .chain-add-btn {
+      background: transparent;
+      border: 2px dashed var(--mid);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.6rem 1.5rem;
+      cursor: pointer;
+      color: var(--mid);
+      transition: all 0.15s;
+    }
+    .chain-add-btn:hover {
+      border-color: var(--black);
+      color: var(--black);
+    }
+
+    /* Right: controls + output */
+    .tool-right {
+      flex: 1;
+      display: flex; flex-direction: column;
+    }
+
+    /* Preset bar */
+    .preset-bar {
+      padding: 1rem 2rem;
+      border-bottom: var(--border);
+      display: flex; gap: 0.5rem; flex-wrap: wrap;
+      align-items: center;
+    }
+    .preset-bar .preset-label {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--mid);
+      margin-right: 0.5rem;
+    }
+    .preset-btn {
+      background: transparent;
+      border: 2px solid var(--black);
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.4rem 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .preset-btn:hover {
+      background: var(--black);
+      color: var(--white);
+    }
+    .preset-btn.active {
+      background: var(--acid);
+      border-color: var(--acid);
+      color: var(--black);
+    }
+
+    .controls-panel {
+      padding: 1.5rem 2rem;
+      border-bottom: var(--border);
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1rem;
+    }
+    .field label {
+      display: block;
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--mid);
+      margin-bottom: 0.3rem;
+    }
+    .field input, .field select {
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid var(--black);
+      font-family: var(--mono);
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 0.4rem 0;
+      color: var(--black);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .field input:focus, .field select:focus {
+      border-color: var(--acid);
+    }
+    .field select {
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%230a0a0a'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0 center;
+      padding-right: 1.2rem;
+    }
+
+    .submit-bar {
+      padding: 1.5rem 2rem;
+      border-bottom: var(--border);
+      display: flex; align-items: center; gap: 1.5rem;
+    }
+    #submitBtn {
+      background: var(--black);
+      color: var(--white);
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 1rem 2.5rem;
+      border: var(--border-thick);
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    #submitBtn:hover:not(:disabled) {
+      background: var(--acid);
+      color: var(--black);
+    }
+    #submitBtn:disabled {
+      background: transparent;
+      color: var(--mid);
+      border-color: var(--mid);
+      cursor: not-allowed;
+    }
+    .progress-track {
+      flex: 1; height: 5px;
+      background: rgba(0,0,0,0.08);
+      position: relative;
+    }
+    .progress-track .fill {
+      position: absolute; top: 0; left: 0; bottom: 0;
+      background: var(--acid);
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+    #status {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--mid);
+      white-space: nowrap;
+    }
+
+    .output-panel {
+      flex: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 280px;
+      position: relative;
+      background:
+        repeating-linear-gradient(45deg, transparent 0, transparent 9px, rgba(0,0,0,0.02) 9px, rgba(0,0,0,0.02) 10px);
+    }
+    .output-panel img, .output-panel video {
+      max-width: 90%; max-height: 90%;
+      border: var(--border-thick);
+    }
+    .output-panel .placeholder {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--mid);
+    }
+    .output-actions {
+      display: none;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .output-actions.visible { display: flex; }
+    .output-action-btn {
+      background: var(--black);
+      color: var(--white);
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.6rem 1.2rem;
+      border: var(--border);
+      cursor: pointer;
+      transition: all 0.15s;
+      text-decoration: none;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .output-action-btn:hover {
+      background: var(--acid);
+      color: var(--black);
+    }
+    .output-action-btn .ico { font-size: 1rem; }
+
+    /* ======================== GALLERY SECTION ======================== */
+
+    .gallery-section {
+      border-bottom: var(--border-thick);
+    }
+    .gallery-header {
+      padding: 2rem 3rem;
+      border-bottom: var(--border);
+      display: flex; align-items: baseline; gap: 1.5rem;
+    }
+    .gallery-header h2 {
+      font-family: var(--serif);
+      font-size: clamp(1.5rem, 4vw, 2.5rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+    }
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0;
+    }
+    .gallery-card {
+      border-right: var(--border);
+      border-bottom: var(--border);
+      overflow: hidden;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .gallery-card:hover { background: rgba(200, 255, 0, 0.06); }
+    .gallery-card img, .gallery-card video {
+      width: 100%;
+      display: block;
+    }
+    .gallery-card .meta {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--mid);
+      display: flex; justify-content: space-between;
+    }
+    .gallery-empty {
+      padding: 3rem;
+      text-align: center;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--mid);
+    }
+
+    /* ======================== HOW IT WORKS ======================== */
+
+    .how-section {
+      border-bottom: var(--border-thick);
+    }
+    .how-header {
+      padding: 3rem;
+      border-bottom: var(--border);
+    }
+    .how-header h2 {
+      font-family: var(--serif);
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+    }
+    .how-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .how-card {
+      padding: 2.5rem 2rem;
+      border-right: var(--border);
+      position: relative;
+    }
+    .how-card:last-child { border-right: none; }
+    .how-card .step-num {
+      font-size: 4rem;
+      font-weight: 700;
+      line-height: 1;
+      color: rgba(0,0,0,0.06);
+      position: absolute; top: 1rem; right: 1.5rem;
+    }
+    .how-card h3 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+    }
+    .how-card p {
+      font-size: 0.8rem;
+      line-height: 1.7;
+      color: var(--grey);
+    }
+
+    /* ======================== FOOTER ======================== */
+
+    footer {
+      display: flex; align-items: stretch;
+      border-bottom: var(--border-thick);
+    }
+    .footer-left {
+      flex: 1;
+      padding: 3rem;
+      border-right: var(--border-thick);
+    }
+    .footer-left h3 {
+      font-family: var(--serif);
+      font-size: 2rem;
+      font-weight: 400;
+      margin-bottom: 0.75rem;
+    }
+    .footer-left p {
+      font-size: 0.75rem;
+      color: var(--mid);
+      line-height: 1.7;
+    }
+    .footer-right {
+      display: flex; flex-direction: column;
+    }
+    .footer-right a {
+      padding: 1.5rem 2.5rem;
+      border-bottom: var(--border);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      display: flex; align-items: center; gap: 0.5rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .footer-right a:last-child { border-bottom: none; }
+    .footer-right a:hover { background: var(--black); color: var(--white); }
+    .footer-right a::after {
+      content: '\2197';
+      font-size: 1rem;
+    }
+
+    .copyright {
+      padding: 1rem 3rem;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--mid);
+      display: flex; justify-content: space-between;
+    }
+
+    /* ======================== TOAST ======================== */
+
+    .toast {
+      position: fixed; bottom: 2rem; right: 2rem;
+      background: var(--black);
+      color: var(--acid);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 0.8rem 1.5rem;
+      border: 2px solid var(--acid);
+      z-index: 200;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ======================== RESPONSIVE ======================== */
+
+    @media (max-width: 768px) {
+      .tool-body { flex-direction: column; }
+      .tool-left { border-right: none; border-bottom: var(--border-thick); }
+      .how-grid { grid-template-columns: 1fr; }
+      .how-card { border-right: none; border-bottom: var(--border); }
+      .how-card:last-child { border-bottom: none; }
+      footer { flex-direction: column; }
+      .footer-left { border-right: none; border-bottom: var(--border-thick); }
+      .controls-panel { grid-template-columns: 1fr 1fr; }
+      .hero { padding: 3rem 1.5rem 2.5rem; }
+      .hero-stats { flex-wrap: wrap; }
+      .nav-links a:nth-child(n+3) { display: none; }
+      .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    }
+
+    /* ======================== LOAD ANIMATION ======================== */
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .anim { animation: rise 0.6s ease both; }
+    .anim-d1 { animation-delay: 0.1s; }
+    .anim-d2 { animation-delay: 0.2s; }
+    .anim-d3 { animation-delay: 0.3s; }
+    .anim-d4 { animation-delay: 0.4s; }
+    .anim-d5 { animation-delay: 0.5s; }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== NAVBAR ==================== -->
+  <nav>
+    <div class="nav-logo"><span class="dot"></span> PIXEL DUET</div>
+    <div class="nav-links">
+      <a href="#tool">Tool</a>
+      <a href="#gallery-section">Gallery</a>
+      <a href="#how">Process</a>
+      <a href="https://github.com/chintan-27/pixel-duet" target="_blank">Github</a>
+    </div>
+    <div class="nav-spacer"></div>
+    <a class="nav-cta" href="#tool">Launch Tool</a>
+  </nav>
+
+  <!-- ==================== HERO ==================== -->
+  <section class="hero">
+    <div class="hero-tag anim">Pixel rearrangement engine</div>
+    <h1 class="anim anim-d1">
+      Every pixel<br>
+      <em>finds its</em><br>
+      <span class="highlight">place.</span>
+    </h1>
+    <p class="hero-desc anim anim-d2">
+      Take the raw pixels of one image and rearrange them &mdash; without adding, removing, or blending &mdash; to form the structure of another. Bijective mapping. CIELAB color space. Hungarian algorithm. Animated with cubic B&eacute;zier paths.
+    </p>
+    <div class="hero-stats anim anim-d3">
+      <div class="hero-stat"><span class="num">1:1</span><span class="lbl">Bijection</span></div>
+      <div class="hero-stat"><span class="num">Lab</span><span class="lbl">Color Space</span></div>
+      <div class="hero-stat"><span class="num">O(n&sup3;)</span><span class="lbl">Hungarian</span></div>
+      <div class="hero-stat"><span class="num">B&eacute;z</span><span class="lbl">Animation</span></div>
+    </div>
+  </section>
+
+  <!-- ==================== MARQUEE ==================== -->
+  <div class="marquee-wrap">
+    <div class="marquee">
+      <span>Pixel-perfect bijection</span>
+      <span>No blending</span>
+      <span>Edge-aware mapping</span>
+      <span>Multiscale refinement</span>
+      <span>GIF / MP4 / WebM</span>
+      <span>6 easing modes</span>
+      <span>Open source</span>
+      <span>Pixel-perfect bijection</span>
+      <span>No blending</span>
+      <span>Edge-aware mapping</span>
+      <span>Multiscale refinement</span>
+      <span>GIF / MP4 / WebM</span>
+      <span>6 easing modes</span>
+      <span>Open source</span>
+    </div>
+  </div>
+
+  <!-- ==================== TOOL ==================== -->
+  <section class="tool-section" id="tool">
+    <div class="tool-header">
+      <h2>Duet Tool</h2>
+      <span class="badge">v0.1.0</span>
+      <span class="badge">Web</span>
+    </div>
+    <div class="tool-body">
+      <div class="tool-left" id="dropZoneContainer">
+        <div class="drop-zone" id="dropA" data-slot="a">
+          <span class="zone-tag">Source &mdash; 01</span>
+          <div class="input-toggle">
+            <button class="active" onclick="setInputMode('a','file')">File</button>
+            <button onclick="setInputMode('a','url')">URL</button>
+          </div>
+          <span class="zone-label" id="labelA">Drop or click &mdash; Image A</span>
+          <input type="file" id="fileA" accept="image/png,image/jpeg">
+          <div class="url-input" id="urlInputA">
+            <input type="text" id="urlA" placeholder="https://example.com/image.png">
+          </div>
+        </div>
+        <div class="drop-arrow">&darr;</div>
+        <div class="drop-zone" id="dropB" data-slot="b">
+          <span class="zone-tag">Target &mdash; 02</span>
+          <div class="input-toggle">
+            <button class="active" onclick="setInputMode('b','file')">File</button>
+            <button onclick="setInputMode('b','url')">URL</button>
+          </div>
+          <span class="zone-label" id="labelB">Drop or click &mdash; Image B</span>
+          <input type="file" id="fileB" accept="image/png,image/jpeg">
+          <div class="url-input" id="urlInputB">
+            <input type="text" id="urlB" placeholder="https://example.com/image.png">
+          </div>
+        </div>
+        <div class="chain-add-zone" id="chainAddZone">
+          <button class="chain-add-btn" onclick="addChainImage()">+ Add Image</button>
+        </div>
+      </div>
+      <div class="tool-right">
+        <div class="preset-bar" id="presetBar">
+          <span class="preset-label">Presets</span>
+        </div>
+        <div class="controls-panel">
+          <div class="field"><label>Width (px)</label><input type="number" id="width" value="260" min="100" max="640"></div>
+          <div class="field"><label>Frames</label><input type="number" id="frames" value="120" min="10" max="300"></div>
+          <div class="field"><label>Hold</label><input type="number" id="hold" value="24" min="0" max="120"></div>
+          <div class="field"><label>Arc</label><input type="number" id="arc" value="0.10" min="0" max="0.5" step="0.02"></div>
+          <div class="field"><label>Stagger</label><input type="number" id="stagger" value="0.35" min="0" max="0.95" step="0.05"></div>
+          <div class="field"><label>Easing</label>
+            <select id="easing">
+              <option value="cosine">Cosine</option>
+              <option value="linear">Linear</option>
+              <option value="bounce">Bounce</option>
+              <option value="elastic">Elastic</option>
+              <option value="step">Step</option>
+              <option value="expo">Expo</option>
+            </select>
+          </div>
+          <div class="field"><label>Format</label>
+            <select id="format">
+              <option value="gif">GIF</option>
+              <option value="mp4">MP4</option>
+              <option value="webm">WebM</option>
+            </select>
+          </div>
+        </div>
+        <div class="submit-bar">
+          <button id="submitBtn" disabled>Execute</button>
+          <div class="progress-track"><div class="fill" id="progressFill"></div></div>
+          <div id="status"></div>
+        </div>
+        <div class="output-panel" id="output">
+          <span class="placeholder">// output renders here</span>
+          <div class="output-actions" id="outputActions">
+            <a class="output-action-btn" id="downloadBtn" href="#" download="pixel_duet"><span class="ico">&darr;</span> Download</a>
+            <button class="output-action-btn" id="shareBtn" onclick="shareResult()"><span class="ico">&nearr;</span> Share</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== GALLERY ==================== -->
+  <section class="gallery-section" id="gallery-section">
+    <div class="gallery-header">
+      <h2>Gallery</h2>
+      <span class="badge" id="galleryCount">0 results</span>
+    </div>
+    <div class="gallery-grid" id="galleryGrid">
+      <div class="gallery-empty">// no completed jobs yet</div>
+    </div>
+  </section>
+
+  <!-- ==================== HOW IT WORKS ==================== -->
+  <section class="how-section" id="how">
+    <div class="how-header">
+      <h2>The Process</h2>
+    </div>
+    <div class="how-grid">
+      <div class="how-card">
+        <span class="step-num">01</span>
+        <h3>Map Colors</h3>
+        <p>Every pixel in Image A is converted to CIELAB color space. A multiscale coarse-to-fine assignment uses the Hungarian algorithm to find the optimal bijective mapping to Image B's structure.</p>
+      </div>
+      <div class="how-card">
+        <span class="step-num">02</span>
+        <h3>Merge + Refine</h3>
+        <p>Overlapping tile windows are merged via cost-aware swaps that preserve the bijection. Local pairwise refinement passes smooth seams and eliminate visible block artifacts.</p>
+      </div>
+      <div class="how-card">
+        <span class="step-num">03</span>
+        <h3>Animate</h3>
+        <p>Each pixel travels along a cubic B&eacute;zier path with configurable easing and staggered start times. Choose from 6 easing modes. Rendered to GIF, MP4, or WebM.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== FOOTER ==================== -->
+  <footer>
+    <div class="footer-left">
+      <h3>Pixel Duet</h3>
+      <p>An open-source tool for bijective pixel rearrangement. Built with NumPy, SciPy, Matplotlib, and FastAPI. Every pixel from Image A ends up somewhere in Image B &mdash; nothing added, nothing lost.</p>
+    </div>
+    <div class="footer-right">
+      <a href="https://github.com/chintan-27/pixel-duet" target="_blank">Repository</a>
+      <a href="https://github.com/chintan-27/pixel-duet#readme" target="_blank">Documentation</a>
+      <a href="https://github.com/chintan-27/pixel-duet/issues" target="_blank">Issues</a>
+    </div>
+  </footer>
+  <div class="copyright">
+    <span>MIT License</span>
+    <span>PIXEL DUET &copy; 2025</span>
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ==================== SCRIPT ==================== -->
+  <script>
+    // ---------- State ----------
+    let fileA = null, fileB = null;
+    let urlA = '', urlB = '';
+    let inputModeA = 'file', inputModeB = 'file';
+    let chainImages = [];  // extra chain images beyond A and B
+    let currentJobId = null;
+    let currentResultUrl = null;
+
+    // ---------- Toast ----------
+    function showToast(msg, duration = 2500) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), duration);
+    }
+
+    // ---------- Input mode toggle ----------
+    function setInputMode(slot, mode) {
+      const zone = document.getElementById(slot === 'a' ? 'dropA' : 'dropB');
+      const toggleBtns = zone.querySelectorAll('.input-toggle button');
+      const label = document.getElementById(slot === 'a' ? 'labelA' : 'labelB');
+      const urlInput = document.getElementById(slot === 'a' ? 'urlInputA' : 'urlInputB');
+
+      toggleBtns.forEach(b => b.classList.remove('active'));
+      toggleBtns[mode === 'file' ? 0 : 1].classList.add('active');
+
+      if (slot === 'a') inputModeA = mode; else inputModeB = mode;
+
+      if (mode === 'url') {
+        urlInput.style.display = 'block';
+        label.style.display = 'none';
+        // Remove file preview
+        const existing = zone.querySelector('img');
+        if (existing) existing.remove();
+        const oldName = zone.querySelector('.zone-filename');
+        if (oldName) oldName.remove();
+        if (slot === 'a') fileA = null; else fileB = null;
+      } else {
+        urlInput.style.display = 'none';
+        if (!zone.querySelector('img')) label.style.display = '';
+      }
+      updateSubmit();
+    }
+
+    // URL input listeners
+    document.getElementById('urlA').addEventListener('input', (e) => {
+      urlA = e.target.value.trim();
+      updateSubmit();
+    });
+    document.getElementById('urlB').addEventListener('input', (e) => {
+      urlB = e.target.value.trim();
+      updateSubmit();
+    });
+
+    // ---------- Drop zone setup ----------
+    function setupDrop(zoneId, fileInputId, labelId, slot) {
+      const zone = document.getElementById(zoneId);
+      const input = document.getElementById(fileInputId);
+      const label = document.getElementById(labelId);
+
+      function handleFile(file) {
+        if (!file) return;
+        if (slot === 'a') { fileA = file; inputModeA = 'file'; }
+        else { fileB = file; inputModeB = 'file'; }
+
+        // Remove old preview
+        const existing = zone.querySelector('img');
+        if (existing) existing.remove();
+        const oldName = zone.querySelector('.zone-filename');
+        if (oldName) oldName.remove();
+
+        // Hide URL input
+        const urlInput = document.getElementById(slot === 'a' ? 'urlInputA' : 'urlInputB');
+        urlInput.style.display = 'none';
+        const toggleBtns = zone.querySelectorAll('.input-toggle button');
+        toggleBtns.forEach(b => b.classList.remove('active'));
+        toggleBtns[0].classList.add('active');
+
+        // Add image preview
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        zone.appendChild(img);
+
+        // Add filename
+        const nameEl = document.createElement('span');
+        nameEl.className = 'zone-filename';
+        nameEl.textContent = file.name;
+        zone.appendChild(nameEl);
+
+        label.style.display = 'none';
+        updateSubmit();
+      }
+
+      zone.addEventListener('click', (e) => {
+        if (e.target.closest('.input-toggle') || e.target.closest('.url-input')) return;
+        input.click();
+      });
+      input.addEventListener('change', () => handleFile(input.files[0]));
+
+      zone.addEventListener('dragover', e => {
+        e.preventDefault();
+        zone.classList.add('dragover');
+      });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) handleFile(file);
+      });
+    }
+
+    setupDrop('dropA', 'fileA', 'labelA', 'a');
+    setupDrop('dropB', 'fileB', 'labelB', 'b');
+
+    function updateSubmit() {
+      const hasA = (inputModeA === 'file' && fileA) || (inputModeA === 'url' && urlA);
+      const hasB = (inputModeB === 'file' && fileB) || (inputModeB === 'url' && urlB);
+      document.getElementById('submitBtn').disabled = !(hasA && hasB);
+    }
+
+    // ---------- Chain builder ----------
+    let chainCounter = 0;
+    function addChainImage() {
+      chainCounter++;
+      const idx = chainCounter + 1; // C=3, D=4, etc.
+      const letter = String.fromCharCode(64 + idx); // C, D, E...
+      const container = document.getElementById('dropZoneContainer');
+      const addZone = document.getElementById('chainAddZone');
+
+      const arrow = document.createElement('div');
+      arrow.className = 'drop-arrow';
+      arrow.innerHTML = '&darr;';
+
+      const zone = document.createElement('div');
+      zone.className = 'drop-zone';
+      zone.id = `dropChain${chainCounter}`;
+      zone.innerHTML = `
+        <span class="zone-tag">Target &mdash; ${String(idx).padStart(2, '0')}</span>
+        <span class="zone-label">Drop or click &mdash; Image ${letter}</span>
+        <input type="file" id="fileChain${chainCounter}" accept="image/png,image/jpeg" style="display:none">
+      `;
+
+      container.insertBefore(arrow, addZone);
+      container.insertBefore(zone, addZone);
+
+      const fileInput = zone.querySelector('input[type=file]');
+      zone.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        chainImages[chainCounter - 1] = file;
+        const existing = zone.querySelector('img');
+        if (existing) existing.remove();
+        const oldName = zone.querySelector('.zone-filename');
+        if (oldName) oldName.remove();
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        zone.appendChild(img);
+        const label = zone.querySelector('.zone-label');
+        if (label) label.style.display = 'none';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'zone-filename';
+        nameEl.textContent = file.name;
+        zone.appendChild(nameEl);
+      });
+
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+          chainImages[chainCounter - 1] = file;
+          fileInput.files = new DataTransfer().files; // reset
+          const existing = zone.querySelector('img');
+          if (existing) existing.remove();
+          const imgEl = document.createElement('img');
+          imgEl.src = URL.createObjectURL(file);
+          zone.appendChild(imgEl);
+          const label = zone.querySelector('.zone-label');
+          if (label) label.style.display = 'none';
+        }
+      });
+    }
+
+    // ---------- Presets ----------
+    let presets = [];
+    let activePreset = null;
+
+    async function loadPresets() {
+      try {
+        const res = await fetch('/api/presets');
+        presets = await res.json();
+        const bar = document.getElementById('presetBar');
+        presets.forEach(p => {
+          const btn = document.createElement('button');
+          btn.className = 'preset-btn';
+          btn.textContent = p.name;
+          btn.onclick = () => applyPreset(p, btn);
+          bar.appendChild(btn);
+        });
+      } catch (e) { /* presets optional */ }
+    }
+
+    function applyPreset(preset, btn) {
+      // Deselect all
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activePreset = preset.id;
+
+      const params = preset.params;
+      if (params.stagger !== undefined) document.getElementById('stagger').value = params.stagger;
+      if (params.arc !== undefined) document.getElementById('arc').value = params.arc;
+      if (params.easing !== undefined) document.getElementById('easing').value = params.easing;
+    }
+
+    // Clear preset highlight when user manually changes controls
+    ['stagger', 'arc', 'easing'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        activePreset = null;
+      });
+    });
+
+    loadPresets();
+
+    // ---------- Submit ----------
+    document.getElementById('submitBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Processing\u2026';
+      const status = document.getElementById('status');
+      const fill = document.getElementById('progressFill');
+      const output = document.getElementById('output');
+      const actions = document.getElementById('outputActions');
+      actions.classList.remove('visible');
+
+      // Keep only the placeholder and actions in output
+      output.innerHTML = '<span class="placeholder">// computing mapping\u2026</span>';
+      output.appendChild(actions);
+      fill.style.width = '0%';
+      status.textContent = 'UPLOADING';
+      currentJobId = null;
+      currentResultUrl = null;
+
+      const useUrl = inputModeA === 'url' && inputModeB === 'url';
+
+      try {
+        let res, data;
+
+        if (useUrl) {
+          const form = new FormData();
+          form.append('image_a_url', urlA);
+          form.append('image_b_url', urlB);
+          form.append('width', document.getElementById('width').value);
+          form.append('frames', document.getElementById('frames').value);
+          form.append('hold', document.getElementById('hold').value);
+          form.append('arc', document.getElementById('arc').value);
+          form.append('stagger', document.getElementById('stagger').value);
+          form.append('format', document.getElementById('format').value);
+          form.append('easing', document.getElementById('easing').value);
+          res = await fetch('/api/duet/url', { method: 'POST', body: form });
+        } else {
+          const form = new FormData();
+          form.append('image_a', fileA);
+          form.append('image_b', fileB);
+          form.append('width', document.getElementById('width').value);
+          form.append('frames', document.getElementById('frames').value);
+          form.append('hold', document.getElementById('hold').value);
+          form.append('arc', document.getElementById('arc').value);
+          form.append('stagger', document.getElementById('stagger').value);
+          form.append('format', document.getElementById('format').value);
+          form.append('easing', document.getElementById('easing').value);
+          res = await fetch('/api/duet', { method: 'POST', body: form });
+        }
+
+        data = await res.json();
+        if (!res.ok) {
+          status.textContent = 'ERR: ' + (data.error || res.statusText);
+          btn.textContent = 'Execute';
+          btn.disabled = false;
+          return;
+        }
+
+        const jobId = data.job_id;
+        currentJobId = jobId;
+        status.textContent = 'QUEUED';
+
+        // Try WebSocket first, fall back to polling
+        const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        let wsOk = false;
+        try {
+          const ws = new WebSocket(`${wsProto}//${location.host}/api/jobs/${jobId}/ws`);
+          ws.onmessage = (evt) => {
+            const sd = JSON.parse(evt.data);
+            if (sd.error) {
+              ws.close();
+              startPolling(jobId);
+              return;
+            }
+            const stageText = (sd.stage || sd.status).toUpperCase();
+            status.textContent = stageText + ' ' + Math.round(sd.progress) + '%';
+            fill.style.width = sd.progress + '%';
+
+            if (sd.status === 'done') {
+              ws.close();
+              onJobComplete(jobId);
+            } else if (sd.status === 'failed') {
+              ws.close();
+              onJobFailed(sd.error);
+            }
+          };
+          ws.onerror = () => {
+            ws.close();
+            if (!wsOk) startPolling(jobId);
+          };
+          ws.onopen = () => { wsOk = true; };
+        } catch (e) {
+          startPolling(jobId);
+        }
+      } catch (e) {
+        status.textContent = 'NET ERR: ' + e.message;
+        btn.textContent = 'Execute';
+        btn.disabled = false;
+      }
+    });
+
+    function startPolling(jobId) {
+      const status = document.getElementById('status');
+      const fill = document.getElementById('progressFill');
+
+      const poll = setInterval(async () => {
+        try {
+          const sr = await fetch(`/api/jobs/${jobId}/status`);
+          const sd = await sr.json();
+          const stageText = (sd.stage || sd.status).toUpperCase();
+          status.textContent = stageText + ' ' + Math.round(sd.progress) + '%';
+          fill.style.width = sd.progress + '%';
+
+          if (sd.status === 'done') {
+            clearInterval(poll);
+            onJobComplete(jobId);
+          } else if (sd.status === 'failed') {
+            clearInterval(poll);
+            onJobFailed(sd.error);
+          }
+        } catch (e) { /* keep polling */ }
+      }, 1000);
+    }
+
+    function onJobComplete(jobId) {
+      const btn = document.getElementById('submitBtn');
+      const status = document.getElementById('status');
+      const fill = document.getElementById('progressFill');
+      const output = document.getElementById('output');
+      const actions = document.getElementById('outputActions');
+
+      fill.style.width = '100%';
+      status.textContent = 'COMPLETE';
+      btn.textContent = 'Execute';
+      btn.disabled = false;
+
+      const fmt = document.getElementById('format').value;
+      const resultUrl = `/api/jobs/${jobId}/result`;
+      currentResultUrl = resultUrl;
+
+      if (fmt === 'gif') {
+        output.innerHTML = `<img src="${resultUrl}">`;
+      } else {
+        output.innerHTML = `<video src="${resultUrl}" controls autoplay loop muted></video>`;
+      }
+
+      // Re-add action buttons
+      output.appendChild(actions);
+      actions.classList.add('visible');
+      document.getElementById('downloadBtn').href = resultUrl;
+      document.getElementById('downloadBtn').download = `pixel_duet.${fmt}`;
+
+      // Refresh gallery
+      loadGallery();
+    }
+
+    function onJobFailed(error) {
+      const btn = document.getElementById('submitBtn');
+      const status = document.getElementById('status');
+      const output = document.getElementById('output');
+      const actions = document.getElementById('outputActions');
+
+      status.textContent = 'FAILED: ' + (error || 'unknown');
+      output.innerHTML = '<span class="placeholder">// export failed</span>';
+      output.appendChild(actions);
+      actions.classList.remove('visible');
+      btn.textContent = 'Execute';
+      btn.disabled = false;
+    }
+
+    // ---------- Share ----------
+    async function shareResult() {
+      if (!currentJobId) return;
+      try {
+        const res = await fetch(`/api/jobs/${currentJobId}/share`);
+        const data = await res.json();
+        if (data.url) {
+          const fullUrl = location.origin + data.url;
+          await navigator.clipboard.writeText(fullUrl);
+          showToast('Link copied to clipboard');
+        }
+      } catch (e) {
+        showToast('Failed to copy link');
+      }
+    }
+
+    // ---------- Gallery ----------
+    async function loadGallery() {
+      try {
+        const res = await fetch('/api/gallery');
+        const jobs = await res.json();
+        const grid = document.getElementById('galleryGrid');
+        const count = document.getElementById('galleryCount');
+        count.textContent = `${jobs.length} result${jobs.length !== 1 ? 's' : ''}`;
+
+        if (jobs.length === 0) {
+          grid.innerHTML = '<div class="gallery-empty">// no completed jobs yet</div>';
+          return;
+        }
+
+        grid.innerHTML = '';
+        jobs.forEach(job => {
+          const card = document.createElement('div');
+          card.className = 'gallery-card';
+          const url = `/api/jobs/${job.job_id}/result`;
+          const time = new Date(job.created_at * 1000).toLocaleTimeString();
+          const fmt = (job.format || 'gif').toUpperCase();
+
+          if (job.format === 'gif') {
+            card.innerHTML = `<img src="${url}" loading="lazy"><div class="meta"><span>${fmt}</span><span>${time}</span></div>`;
+          } else {
+            card.innerHTML = `<video src="${url}" autoplay loop muted playsinline></video><div class="meta"><span>${fmt}</span><span>${time}</span></div>`;
+          }
+          card.onclick = () => { window.open(url, '_blank'); };
+          grid.appendChild(card);
+        });
+      } catch (e) { /* gallery optional */ }
+    }
+
+    loadGallery();
+  </script>
+
+</body>
+</html>
