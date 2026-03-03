@@ -209,3 +209,5 @@ __marimo__/
 # Images
 images/
 .DS_Store
+AGENTS.md
+.opencode
