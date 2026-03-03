@@ -1,425 +1,57 @@
-# app.py — Pixel Duet UI (original-size output, clean, aesthetic, user-friendly)
-# One-way: uses ONLY pixels from Image A to form Image B with multiscale edge-aware mapping.
-# Top: two image cards (A → B) that show thumbnails immediately on selection/drag-drop.
-# Middle: a slim control bar with Submit and a progress line.
-# Bottom: an output viewer that displays the resulting GIF or final still at original pixel size (no stretching), with scrolling if needed.
+#!/usr/bin/env python3
+# app.py — Pixel Duet Desktop UI (PySide6)
+# Thin wrapper: all algorithm logic lives in the pixelduet package.
 
 import sys
 import os
+
 import numpy as np
 from PIL import Image, ImageSequence
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-# SciPy optional (recommended for best quality mapping)
-try:
-    from scipy.optimize import linear_sum_assignment
-    from scipy.ndimage import sobel as nd_sobel
-
-    HAS_SCIPY = True
-except Exception:
-    HAS_SCIPY = False
+from pixelduet.utils import load_rgb, resize_to_width, to_np, permute_image
+from pixelduet.animation import compute_paths, compute_stagger, get_easing, bezier_cubic  # noqa: F401
+from pixelduet import map_pixels
 
 
-# ---------- Core utilities ----------
-def load_rgb(path):
-    return Image.open(path).convert("RGB")
+# ---------- Preview worker (low-res proxy, runs fast) ----------
+class PreviewWorker(QtCore.QObject):
+    """Compute a low-res mapping and return the permuted image for instant preview."""
 
+    finished = QtCore.Signal(object)  # emits numpy array (H, W, 3) uint8
+    failed = QtCore.Signal(str)
 
-def resize_to_width(img, width):
-    w0, h0 = img.size
-    height = max(1, int(round(width * h0 / w0)))
-    return img.resize((width, height), Image.LANCZOS)
+    def __init__(self, pathA, pathB, preview_width=64, parent=None):
+        super().__init__(parent)
+        self.pathA = pathA
+        self.pathB = pathB
+        self.preview_width = preview_width
 
+    @QtCore.Slot()
+    def run(self):
+        try:
+            A0 = load_rgb(self.pathA)
+            B0 = load_rgb(self.pathB)
+            A = resize_to_width(A0, self.preview_width)
+            Aw, Ah = A.size
+            B = B0.resize((Aw, Ah), Image.LANCZOS)
+            A_np = to_np(A)
+            B_np = to_np(B)
 
-def to_np(img):
-    return np.asarray(img, dtype=np.float32)
-
-
-def grid_coords(H, W):
-    y, x = np.meshgrid(np.arange(H), np.arange(W), indexing="ij")
-    return x.reshape(-1), y.reshape(-1)
-
-
-def luminance(rgb):
-    return 0.2126 * rgb[..., 0] + 0.7152 * rgb[..., 1] + 0.0722 * rgb[..., 2]
-
-
-# sRGB -> Lab (D65)
-def _srgb_to_linear(c):
-    a = 0.055
-    return np.where(c <= 0.04045, c / 12.92, ((c + a) / (1 + a)) ** 2.4)
-
-
-def _rgb_to_xyz(rgb):
-    M = np.array(
-        [
-            [0.4124564, 0.3575761, 0.1804375],
-            [0.2126729, 0.7151522, 0.0721750],
-            [0.0193339, 0.1191920, 0.9503041],
-        ],
-        dtype=np.float32,
-    )
-    return np.tensordot(rgb, M.T, axes=1)
-
-
-def _f_lab(t):
-    e = (6 / 29) ** 3
-    k = (29 / 3) ** 3 / 3
-    return np.where(t > e, np.cbrt(t), (t * k) + 4 / 29)
-
-
-def rgb_to_lab(rgb_uint8):
-    rgb = np.clip(rgb_uint8.astype(np.float32) / 255.0, 0, 1)
-    lin = _srgb_to_linear(rgb)
-    xyz = _rgb_to_xyz(lin)
-    Xn, Yn, Zn = 0.95047, 1.00000, 1.08883
-    fx, fy, fz = (
-        _f_lab(xyz[..., 0] / Xn),
-        _f_lab(xyz[..., 1] / Yn),
-        _f_lab(xyz[..., 2] / Zn),
-    )
-    L = 116 * fy - 16
-    a = 500 * (fx - fy)
-    b = 200 * (fy - fz)
-    return np.stack([L, a, b], axis=-1).astype(np.float32)
-
-
-def edges_from_B(B_np):
-    lum = (luminance(B_np) / 255.0).astype(np.float32)
-    if HAS_SCIPY:
-        gx = nd_sobel(lum, axis=1, mode="reflect")
-        gy = nd_sobel(lum, axis=0, mode="reflect")
-        mag = np.sqrt(gx * gx + gy * gy)
-    else:
-        gy, gx = np.gradient(lum)
-        mag = np.sqrt(gx * gx + gy * gy)
-    m = mag.max()
-    return mag / m if m > 0 else mag
-
-
-# ---------- Mapping plumbing ----------
-def mapping_global(A_np, B_np):
-    H, W, _ = A_np.shape
-    N = H * W
-    A_flat = A_np.reshape(N, 3)
-    B_flat = B_np.reshape(N, 3)
-    lumA = luminance(A_flat)
-    lumB = luminance(B_flat)
-    rA = np.argsort(lumA, kind="mergesort")
-    rB = np.argsort(lumB, kind="mergesort")
-    M = np.empty(N, dtype=np.int64)
-    M[rA] = rB
-    return M
-
-
-def mapping_color_local_edgeparent(
-    A_np, B_np, tile, spatial, base, ppx, ppy, lambda_parent, edge_map, off_x=0, off_y=0
-):
-    H, W, _ = A_np.shape
-    N = H * W
-    if not HAS_SCIPY:
-        return mapping_global(A_np, B_np)
-
-    M = base.copy()
-    A_flat = A_np.reshape(-1, 3)
-    B_flat = B_np.reshape(-1, 3)
-    A_lab = rgb_to_lab(A_flat)
-    B_lab = rgb_to_lab(B_flat)
-
-    yy_full, xx_full = np.meshgrid(np.arange(H), np.arange(W), indexing="ij")
-    x_all = xx_full.reshape(-1)
-    y_all = yy_full.reshape(-1)
-    edge_flat = edge_map.reshape(-1)
-
-    y_starts = list(range(off_y, H, tile))
-    x_starts = list(range(off_x, W, tile))
-
-    for y0 in y_starts:
-        y1 = min(H, y0 + tile)
-        for x0 in x_starts:
-            x1 = min(W, x0 + tile)
-            yy, xx = np.meshgrid(np.arange(y0, y1), np.arange(x0, x1), indexing="ij")
-            idx = (yy * W + xx).reshape(-1)
-            n = idx.size
-            if n == 0:
-                continue
-
-            A_lab_tile = A_lab[idx]
-            B_lab_tile = B_lab[idx]
-
-            A2 = np.sum(A_lab_tile**2, axis=1)[:, None]
-            B2 = np.sum(B_lab_tile**2, axis=1)[None, :]
-            AB = A_lab_tile @ B_lab_tile.T
-            C_color = A2 + B2 - 2 * AB
-
-            Ax = x_all[idx][:, None]
-            Ay = y_all[idx][:, None]
-            Bx = x_all[idx][None, :]
-            By = y_all[idx][None, :]
-            C_spat = ((Ax - Bx) ** 2 + (Ay - By) ** 2) / max(1, tile**2)
-
-            ppx_i = ppx[idx][:, None]
-            ppy_i = ppy[idx][:, None]
-            C_parent = ((Bx - ppx_i) ** 2 + (By - ppy_i) ** 2) / max(1, tile**2)
-            w_edge = 1.0 + edge_flat[idx][None, :]
-
-            C = C_color + spatial * C_spat + (lambda_parent * w_edge) * C_parent
-            r, c = linear_sum_assignment(C)
-            M[idx[r]] = idx[c]
-
-    return np.clip(M, 0, N - 1)
-
-
-def merge_mappings(M_base, candidates, A_lab, B_lab, H, W, passes=2):
-    N = H * W
-    inv = np.empty(N, dtype=np.int64)
-    inv[M_base] = np.arange(N, dtype=np.int64)
-
-    def cost(i, j_dest):
-        d = A_lab[i] - B_lab[j_dest]
-        return float(d.dot(d))
-
-    rng = np.random.default_rng(0)
-    for _ in range(passes):
-        order = rng.permutation(N)
-        for i in order:
-            j_current = M_base[i]
-            best_j = j_current
-            best_delta = 0.0
-            for M_alt in candidates:
-                j_prop = M_alt[i]
-                if j_prop == j_current:
-                    continue
-                k = inv[j_prop]
-                c0 = cost(i, j_current) + cost(k, M_base[k])
-                c1 = cost(i, j_prop) + cost(k, j_current)
-                delta = c1 - c0
-                if delta < best_delta:
-                    best_delta = delta
-                    best_j = j_prop
-            if best_j != j_current:
-                k = inv[best_j]
-                old_j_i = j_current
-                M_base[i] = best_j
-                M_base[k] = old_j_i
-                inv[best_j] = i
-                inv[old_j_i] = k
-    return M_base
-
-
-def refine_swaps(M, A_lab, B_lab, H, W, iters=12, radius=2):
-    rng = np.random.default_rng(1)
-    idxs = np.arange(H * W, dtype=np.int64)
-    y = idxs // W
-    x = idxs % W
-
-    def cost(i, j_dest):
-        d = A_lab[i] - B_lab[j_dest]
-        return float(d.dot(d))
-
-    for _ in range(iters):
-        order = rng.permutation(idxs)
-        for i in order:
-            neighbors = []
-            for dy in range(-radius, radius + 1):
-                for dx in range(-radius, radius + 1):
-                    if dx == 0 and dy == 0:
-                        continue
-                    xn = x[i] + dx
-                    yn = y[i] + dy
-                    if 0 <= xn < W and 0 <= yn < H:
-                        neighbors.append(yn * W + xn)
-            if not neighbors:
-                continue
-            j = neighbors[rng.integers(len(neighbors))]
-            c0 = cost(i, M[i]) + cost(j, M[j])
-            c1 = cost(i, M[j]) + cost(j, M[i])
-            if c1 + 1e-7 < c0:
-                M[i], M[j] = M[j], M[i]
-    return M
-
-
-def parent_coords(H, W, Hp, Wp, M_prev):
-    x_prev, y_prev = grid_coords(Hp, Wp)
-    scale_x = W / Wp
-    scale_y = H / Hp
-    xf, yf = grid_coords(H, W)
-    xc = np.clip((xf / scale_x).round().astype(np.int64), 0, Wp - 1)
-    yc = np.clip((yf / scale_y).round().astype(np.int64), 0, Hp - 1)
-    ic = yc * Wp + xc
-    jp = M_prev[ic]
-    ppx = x_prev[jp] * scale_x
-    ppy = y_prev[jp] * scale_y
-    return ppx.astype(np.float32), ppy.astype(np.float32)
-
-
-def multiscale_map(
-    A_np_full, B_np_full, levels, tiles, lambdas_spatial, lambdas_parent
-):
-    if not HAS_SCIPY:
-        H, W, _ = A_np_full.shape
-        return mapping_global(A_np_full, B_np_full), H, W
-
-    Aw_full, Ah_full = B_np_full.shape[1], B_np_full.shape[0]
-
-    def resize_np(np_img, target_w):
-        img = Image.fromarray(np_img.astype(np.uint8))
-        h = max(1, int(round(target_w * Ah_full / Aw_full)))
-        return to_np(img.resize((target_w, h), Image.LANCZOS))
-
-    A_levels = [resize_np(A_np_full, w) for w in levels]
-    B_levels = [resize_np(B_np_full, w) for w in levels]
-    edges_levels = [edges_from_B(B_levels[i]) for i in range(len(levels))]
-
-    # Coarsest
-    A0, B0 = A_levels[0], B_levels[0]
-    H0, W0, _ = A0.shape
-    tile0 = tiles[0]
-    M = mapping_global(A0, B0)
-    off = tile0 // 2
-    ppx0 = np.zeros(H0 * W0, dtype=np.float32)
-    ppy0 = np.zeros(H0 * W0, dtype=np.float32)
-    cand0 = [
-        mapping_color_local_edgeparent(
-            A0,
-            B0,
-            tile0,
-            lambdas_spatial[0],
-            M,
-            ppx0,
-            ppy0,
-            0.0,
-            edges_levels[0],
-            off_x=0,
-            off_y=0,
-        ),
-        mapping_color_local_edgeparent(
-            A0,
-            B0,
-            tile0,
-            lambdas_spatial[0],
-            M,
-            ppx0,
-            ppy0,
-            0.0,
-            edges_levels[0],
-            off_x=off,
-            off_y=0,
-        ),
-        mapping_color_local_edgeparent(
-            A0,
-            B0,
-            tile0,
-            lambdas_spatial[0],
-            M,
-            ppx0,
-            ppy0,
-            0.0,
-            edges_levels[0],
-            off_x=0,
-            off_y=off,
-        ),
-        mapping_color_local_edgeparent(
-            A0,
-            B0,
-            tile0,
-            lambdas_spatial[0],
-            M,
-            ppx0,
-            ppy0,
-            0.0,
-            edges_levels[0],
-            off_x=off,
-            off_y=off,
-        ),
-    ]
-    A_lab0 = rgb_to_lab(A0.reshape(-1, 3))
-    B_lab0 = rgb_to_lab(B0.reshape(-1, 3))
-    M = merge_mappings(M, cand0, A_lab0, B_lab0, H0, W0, passes=2)
-    M = refine_swaps(M, A_lab0, B_lab0, H0, W0, iters=12, radius=2)
-    prev = (M, H0, W0)
-
-    # Finer levels
-    for li in range(1, len(levels)):
-        A_, B_ = A_levels[li], B_levels[li]
-        H, W, _ = A_.shape
-        tile = tiles[li]
-        lam_s = lambdas_spatial[li]
-        lam_p = lambdas_parent[li]
-        M_prev, Hp, Wp = prev
-        ppx, ppy = parent_coords(H, W, Hp, Wp, M_prev)
-        M_base = mapping_global(A_, B_)
-        off = tile // 2
-        candidates = [
-            mapping_color_local_edgeparent(
-                A_,
-                B_,
-                tile,
-                lam_s,
-                M_base,
-                ppx,
-                ppy,
-                lam_p,
-                edges_levels[li],
-                off_x=0,
-                off_y=0,
-            ),
-            mapping_color_local_edgeparent(
-                A_,
-                B_,
-                tile,
-                lam_s,
-                M_base,
-                ppx,
-                ppy,
-                lam_p,
-                edges_levels[li],
-                off_x=off,
-                off_y=0,
-            ),
-            mapping_color_local_edgeparent(
-                A_,
-                B_,
-                tile,
-                lam_s,
-                M_base,
-                ppx,
-                ppy,
-                lam_p,
-                edges_levels[li],
-                off_x=0,
-                off_y=off,
-            ),
-            mapping_color_local_edgeparent(
-                A_,
-                B_,
-                tile,
-                lam_s,
-                M_base,
-                ppx,
-                ppy,
-                lam_p,
-                edges_levels[li],
-                off_x=off,
-                off_y=off,
-            ),
-        ]
-        A_lab = rgb_to_lab(A_.reshape(-1, 3))
-        B_lab = rgb_to_lab(B_.reshape(-1, 3))
-        M = merge_mappings(M_base.copy(), candidates, A_lab, B_lab, H, W, passes=2)
-        M = refine_swaps(M, A_lab, B_lab, H, W, iters=10, radius=2)
-        prev = (M, H, W)
-
-    return prev  # (M_final, H_final, W_final)
-
-
-def permute_image(A_np, M):
-    H, W, _ = A_np.shape
-    N = H * W
-    perm_flat = np.zeros_like(A_np.reshape(N, 3))
-    perm_flat[M] = A_np.reshape(N, 3)
-    return perm_flat.reshape(H, W, 3).astype(np.uint8)
+            M_final, _Hm, _Wm = map_pixels(
+                A_np,
+                B_np,
+                levels=[self.preview_width],
+                tiles=[min(12, self.preview_width // 4)],
+                lambdas_spatial=[0.25],
+                lambdas_parent=[0.0],
+                refine_iters=5,
+            )
+            result = permute_image(A_np, M_final)
+            self.finished.emit(result)
+        except Exception as e:
+            self.failed.emit(str(e))
 
 
 # ---------- Export worker (off-thread, with progress) ----------
@@ -443,6 +75,7 @@ class ExportWorker(QtCore.QObject):
         lam_parent,
         stagger,
         arc,
+        easing="cosine",
         parent=None,
     ):
         super().__init__(parent)
@@ -458,17 +91,18 @@ class ExportWorker(QtCore.QObject):
         self.lam_parent = lam_parent
         self.stagger = stagger
         self.arc = arc
+        self.easing = easing
 
     @QtCore.Slot()
     def run(self):
         try:
             import matplotlib
 
-            matplotlib.use("Agg")  # offscreen
+            matplotlib.use("Agg")
             import matplotlib.pyplot as plt
             from matplotlib.animation import PillowWriter
 
-            self.stage.emit("Loading images…")
+            self.stage.emit("Loading images\u2026")
             A0 = load_rgb(self.pathA)
             B0 = load_rgb(self.pathB)
             A = resize_to_width(A0, self.width)
@@ -479,46 +113,34 @@ class ExportWorker(QtCore.QObject):
             H, W, _ = A_np.shape
             N = H * W
 
-            # Multiscale mapping
-            self.stage.emit("Computing mapping…")
+            self.stage.emit("Computing mapping\u2026")
             self.progress.emit(5)
-            M_final, Hm, Wm = multiscale_map(
-                A_np, B_np, self.levels, self.tiles, self.lam_spatial, self.lam_parent
+
+            def on_progress(stage, frac):
+                self.progress.emit(5 + int(40 * frac))
+
+            M_final, Hm, Wm = map_pixels(
+                A_np,
+                B_np,
+                levels=self.levels,
+                tiles=self.tiles,
+                lambdas_spatial=self.lam_spatial,
+                lambdas_parent=self.lam_parent,
+                progress_callback=on_progress,
             )
             if Hm != H or Wm != W:
                 raise RuntimeError("Final mapping resolution mismatch.")
 
-            # Prepare animation data
-            self.stage.emit("Rendering GIF…")
-            x_all, y_all = grid_coords(H, W)
-            Sx = x_all.copy()
-            Sy = y_all.copy()
-            Ex = x_all[M_final]
-            Ey = y_all[M_final]
-            dx = Ex - Sx
-            dy = Ey - Sy
-            dist = np.hypot(dx, dy)
-            px = np.where(dist > 0, -dy / (dist + 1e-9), 0.0)
-            py = np.where(dist > 0, dx / (dist + 1e-9), 1.0)
-            off = self.arc * dist
-            ox = px * off
-            oy = py * off
-            paths = (
-                Sx,
-                Sy,
-                Sx + 0.33 * dx + ox,
-                Sy + 0.33 * dy + oy,
-                Sx + 0.66 * dx + ox,
-                Sy + 0.66 * dy + oy,
-                Ex,
-                Ey,
-            )
+            self.stage.emit("Rendering GIF\u2026")
 
             colors_A = (A_np.reshape(N, 3) / 255.0).clip(0, 1)
             perm_img = permute_image(A_np, M_final).astype(np.float32) / 255.0
 
+            paths = compute_paths(H, W, M_final, arc=self.arc)
+            Sx, Sy = paths[0], paths[1]
             rng = np.random.default_rng(None)
             start = rng.uniform(0.0, min(0.95, self.stagger), size=N)
+            ease_fn = get_easing(self.easing)
 
             fig, ax = plt.subplots(figsize=(6, 6 * H / W))
             ax.set_facecolor("#FFFFFF")
@@ -550,27 +172,13 @@ class ExportWorker(QtCore.QObject):
 
             total_frames = self.frames + max(0, self.hold)
 
-            def ease(t):
-                t = np.clip(t, 0.0, 1.0)
-                return 0.5 * (1 - np.cos(np.pi * t))
-
-            def bezier_cubic(Sx, Sy, C1x, C1y, C2x, C2y, Ex, Ey, t):
-                u = 1 - t
-                uu = u * u
-                tt = t * t
-                uuu = uu * u
-                ttt = tt * t
-                bx = uuu * Sx + 3 * uu * t * C1x + 3 * u * tt * C2x + ttt * Ex
-                by = uuu * Sy + 3 * uu * t * C1y + 3 * u * tt * C2y + ttt * Ey
-                return bx, by
-
             writer = PillowWriter(fps=30)
             os.makedirs(os.path.dirname(self.save_path) or ".", exist_ok=True)
             with writer.saving(fig, self.save_path, dpi=100):
                 for frame in range(total_frames):
                     if frame < self.frames:
                         g = frame / max(1, self.frames - 1)
-                        t = ease(np.clip((g - start) / (1.0 - start + 1e-9), 0, 1))
+                        t = ease_fn(np.clip((g - start) / (1.0 - start + 1e-9), 0, 1))
                         x, y = bezier_cubic(*paths, t)
                         scat.set_offsets(np.column_stack([x, y]))
                         if im.get_visible():
@@ -583,7 +191,7 @@ class ExportWorker(QtCore.QObject):
                         if scat.get_visible():
                             scat.set_visible(False)
                     writer.grab_frame()
-                    self.progress.emit(int(100 * (frame + 1) / total_frames))
+                    self.progress.emit(45 + int(55 * (frame + 1) / total_frames))
 
             plt.close(fig)
             self.stage.emit("Done.")
@@ -723,18 +331,15 @@ class OutputViewer(QtWidgets.QFrame):
         header.addWidget(self.status)
         outer.addLayout(header)
 
-        # Scrollable viewer that shows original pixel size (no scaling)
         self.scroll = QtWidgets.QScrollArea()
         self.scroll.setWidgetResizable(False)
-        self.scroll.setStyleSheet(
-            "QScrollArea { background: #0D1016; border-radius: 8px; }"
-        )
+        self.scroll.setStyleSheet("QScrollArea { background: #0D1016; border-radius: 8px; }")
         self.scroll.setAlignment(QtCore.Qt.AlignCenter)
         outer.addWidget(self.scroll, 1)
 
         self.view = QtWidgets.QLabel()
         self.view.setAlignment(QtCore.Qt.AlignCenter)
-        self.view.setScaledContents(False)  # critical: do NOT scale content
+        self.view.setScaledContents(False)
         self.scroll.setWidget(self.view)
 
         self.movie = None
@@ -745,14 +350,12 @@ class OutputViewer(QtWidgets.QFrame):
 
     def show_gif(self, path):
         self.clear_preview()
-        # Try QMovie (original-size frames)
         self.movie = QtGui.QMovie(path)
         if self.movie.isValid():
             self.movie.setCacheMode(QtGui.QMovie.CacheAll)
             self.movie.setSpeed(100)
             self.view.setMovie(self.movie)
 
-            # Resize label to the movie frame size on each frame to preserve original pixels
             def fit_to_frame(_):
                 rect = self.movie.frameRect()
                 self.view.setFixedSize(rect.size())
@@ -761,7 +364,6 @@ class OutputViewer(QtWidgets.QFrame):
             self.movie.start()
             self.status.setText(os.path.basename(path))
         else:
-            # Fallback: PIL playback, original-size frames
             try:
                 gif = Image.open(path)
                 self.pilFrames, self.pilDurations = [], []
@@ -769,14 +371,10 @@ class OutputViewer(QtWidgets.QFrame):
                     fr_rgb = frame.convert("RGB")
                     np_img = np.array(fr_rgb)
                     H, W = np_img.shape[:2]
-                    qimg = QtGui.QImage(
-                        np_img.data, W, H, 3 * W, QtGui.QImage.Format_RGB888
-                    )
+                    qimg = QtGui.QImage(np_img.data, W, H, 3 * W, QtGui.QImage.Format_RGB888)
                     pm = QtGui.QPixmap.fromImage(qimg.copy())
                     self.pilFrames.append(pm)
-                    self.pilDurations.append(
-                        max(10, int(frame.info.get("duration", 33)))
-                    )
+                    self.pilDurations.append(max(10, int(frame.info.get("duration", 33))))
                 self.pilIndex = 0
                 if self.pilFrames:
                     self.view.setPixmap(self.pilFrames[0])
@@ -792,7 +390,7 @@ class OutputViewer(QtWidgets.QFrame):
         if not self.pilFrames:
             return
         pm = self.pilFrames[self.pilIndex]
-        self.view.setPixmap(pm)  # original size
+        self.view.setPixmap(pm)
         self.view.setFixedSize(pm.size())
         self.pilIndex = (self.pilIndex + 1) % len(self.pilFrames)
         self.pilTimer.start(self.pilDurations[self.pilIndex])
@@ -809,7 +407,7 @@ class OutputViewer(QtWidgets.QFrame):
         if self.movie:
             try:
                 self.movie.stop()
-            except:
+            except Exception:
                 pass
             self.movie = None
         if self.pilTimer:
@@ -817,12 +415,10 @@ class OutputViewer(QtWidgets.QFrame):
             self.pilTimer = None
         self.pilFrames, self.pilDurations = [], []
         self.view.clear()
-        # Reset size to something minimal until a new image is shown
         self.view.setFixedSize(QtCore.QSize(1, 1))
 
     def resizeEvent(self, ev):
         super().resizeEvent(ev)
-        # No scaling; content remains at original size. QScrollArea will show scrollbars if needed.
 
 
 # ---------- Main window ----------
@@ -837,6 +433,8 @@ class PixelDuetApp(QtWidgets.QMainWindow):
         self.pathB = ""
         self.thread = None
         self.worker = None
+        self.previewThread = None
+        self.previewWorker = None
 
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -852,7 +450,7 @@ class PixelDuetApp(QtWidgets.QMainWindow):
         self.cardA.pathChanged.connect(self._on_pathA)
         self.cardB.pathChanged.connect(self._on_pathB)
 
-        arrow = QtWidgets.QLabel("→")
+        arrow = QtWidgets.QLabel("\u2192")
         arrow.setAlignment(QtCore.Qt.AlignCenter)
         arrow.setStyleSheet("color: #3FD0FF; font-size: 28px; font-weight: 700;")
         arrow.setFixedWidth(40)
@@ -862,7 +460,7 @@ class PixelDuetApp(QtWidgets.QMainWindow):
         top.addWidget(self.cardB, 1)
         root.addLayout(top)
 
-        # Control bar: Submit + slim progress + minimal knobs
+        # Control bar
         ctrl = QtWidgets.QFrame()
         ctrl.setStyleSheet(
             f"QFrame {{ background: {CARD}; border: 1px solid {BORDER}; border-radius: 10px; }}"
@@ -888,7 +486,6 @@ class PixelDuetApp(QtWidgets.QMainWindow):
         """)
         self.btnSubmit.clicked.connect(self.on_submit)
 
-        # Minimal controls
         self.spinWidth = QtWidgets.QSpinBox()
         self.spinWidth.setRange(160, 640)
         self.spinWidth.setValue(260)
@@ -908,6 +505,11 @@ class PixelDuetApp(QtWidgets.QMainWindow):
         self.dblStagger.setSingleStep(0.05)
         self.dblStagger.setValue(0.35)
 
+        self.comboEasing = QtWidgets.QComboBox()
+        for name in ("cosine", "linear", "bounce", "elastic", "step", "expo"):
+            self.comboEasing.addItem(name)
+        self.comboEasing.setCurrentText("cosine")
+
         def small(label, w):
             box = QtWidgets.QWidget()
             hl = QtWidgets.QHBoxLayout(box)
@@ -925,6 +527,7 @@ class PixelDuetApp(QtWidgets.QMainWindow):
         cl.addWidget(small("Hold", self.spinHold))
         cl.addWidget(small("Arc", self.dblArc))
         cl.addWidget(small("Stagger", self.dblStagger))
+        cl.addWidget(small("Easing", self.comboEasing))
         cl.addStretch(1)
 
         self.progress = QtWidgets.QProgressBar()
@@ -943,13 +546,10 @@ class PixelDuetApp(QtWidgets.QMainWindow):
         cl.addWidget(self.progress)
         root.addWidget(ctrl)
 
-        # Bottom: Output viewer (original size, scrollable)
         self.output = OutputViewer()
         root.addWidget(self.output, 1)
 
-        self.statusBar().setStyleSheet(
-            f"QStatusBar {{ background: {BG}; color: {TEXT}; }}"
-        )
+        self.statusBar().setStyleSheet(f"QStatusBar {{ background: {BG}; color: {TEXT}; }}")
         self._update_submit_enabled()
 
     def _apply_theme(self):
@@ -979,6 +579,37 @@ class PixelDuetApp(QtWidgets.QMainWindow):
 
     def _update_submit_enabled(self):
         self.btnSubmit.setEnabled(bool(self.pathA and self.pathB))
+        if self.pathA and self.pathB:
+            self._start_preview()
+
+    def _start_preview(self):
+        """Launch a low-res preview mapping in a background thread."""
+        # Cancel any running preview
+        if self.previewThread and self.previewThread.isRunning():
+            self.previewThread.quit()
+            self.previewThread.wait(500)
+
+        self.previewWorker = PreviewWorker(self.pathA, self.pathB, preview_width=64)
+        self.previewThread = QtCore.QThread(self)
+        self.previewWorker.moveToThread(self.previewThread)
+        self.previewThread.started.connect(self.previewWorker.run)
+        self.previewWorker.finished.connect(self._preview_done)
+        self.previewWorker.failed.connect(self._preview_failed)
+        self.previewWorker.finished.connect(self.previewThread.quit)
+        self.previewWorker.failed.connect(self.previewThread.quit)
+        self.previewWorker.finished.connect(self.previewWorker.deleteLater)
+        self.previewWorker.failed.connect(self.previewWorker.deleteLater)
+        self.previewThread.finished.connect(self.previewThread.deleteLater)
+        self.statusBar().showMessage("Computing preview\u2026")
+        self.previewThread.start()
+
+    def _preview_done(self, np_img):
+        self.output.show_still_np(np_img)
+        self.output.status.setText("Preview (low-res)")
+        self.statusBar().showMessage("Preview ready", 3000)
+
+    def _preview_failed(self, msg):
+        self.statusBar().showMessage(f"Preview failed: {msg}", 3000)
 
     def on_submit(self):
         try:
@@ -993,8 +624,8 @@ class PixelDuetApp(QtWidgets.QMainWindow):
             hold = self.spinHold.value()
             arc = self.dblArc.value()
             stagger = self.dblStagger.value()
+            easing = self.comboEasing.currentText()
 
-            # Multiscale defaults tuned for aesthetics
             w2 = max(64, width // 4)
             w3 = max(96, width // 2)
             levels = [w2, w3, width]
@@ -1003,7 +634,7 @@ class PixelDuetApp(QtWidgets.QMainWindow):
             lam_parent = [0.00, 0.20, 0.12]
 
             self.progress.setValue(0)
-            self.statusBar().showMessage("Exporting…")
+            self.statusBar().showMessage("Exporting\u2026")
 
             self.worker = ExportWorker(
                 self.pathA,
@@ -1018,6 +649,7 @@ class PixelDuetApp(QtWidgets.QMainWindow):
                 lam_parent,
                 stagger,
                 arc,
+                easing,
             )
             self.thread = QtCore.QThread(self)
             self.worker.moveToThread(self.thread)
