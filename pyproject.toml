@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pixel-duet"
+version = "0.1.0"
+description = "Rearrange pixels from Image A to form Image B with animated transitions"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [{ name = "Chintan Acharya" }]
+keywords = ["image", "pixel", "animation", "gif", "art"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Graphics",
+]
+dependencies = [
+    "numpy>=1.21",
+    "pillow>=9.0",
+    "matplotlib>=3.5",
+]
+
+[project.optional-dependencies]
+scipy = ["scipy>=1.7"]
+gui = ["PySide6>=6.4"]
+video = ["imageio[pyav]>=2.28"]
+web = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.22",
+    "python-multipart>=0.0.6",
+]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.4",
+    "httpx>=0.24",
+    "pixel-duet[scipy,video,web]",
+]
+all = ["pixel-duet[scipy,gui,video,web]"]
+
+[project.scripts]
+pixel-duet = "pixelduet.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/chintan-27/pixel-duet"
+Repository = "https://github.com/chintan-27/pixel-duet"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# ---------- Ruff ----------
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "E741",   # ambiguous variable name (we use H, W, N, M, etc.)
+    "B007",   # unused loop variable (_ in refine loops)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pixelduet"]
+
+# ---------- Pytest ----------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
